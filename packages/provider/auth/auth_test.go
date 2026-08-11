@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,6 +19,34 @@ func TestProbeAPIKeyAcceptsExtraProviderWithoutProbe(t *testing.T) {
 	if err := ProbeAPIKey(context.Background(), "my-company", "test-key"); err != nil {
 		t.Fatalf("ProbeAPIKey custom provider: %v", err)
 	}
+}
+
+func TestProbeGondolaAPIKeyUsesAuthenticatedBalanceEndpoint(t *testing.T) {
+	client := &http.Client{Transport: authRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != "https://api.gondola-ai.com/v1/balance" {
+			t.Fatalf("probe URL = %q", req.URL.String())
+		}
+		if got := req.Header.Get("authorization"); got != "Bearer gnd_test" {
+			t.Fatalf("authorization = %q", got)
+		}
+		return &http.Response{
+			StatusCode: http.StatusUnauthorized,
+			Body:       io.NopCloser(strings.NewReader(`{"error":"invalid key"}`)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})}
+
+	err := probeAPIKey(context.Background(), "gondola", "gnd_test", client)
+	if err == nil || !strings.Contains(err.Error(), "rejected the key") {
+		t.Fatalf("probeAPIKey error = %v", err)
+	}
+}
+
+type authRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f authRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestStoreRoundTrip(t *testing.T) {

@@ -130,6 +130,9 @@ show instructions and should be configured with environment variables.
 | Cloudflare AI Gateway | `CLOUDFLARE_API_KEY` | `cloudflare-ai-gateway` |
 | Azure OpenAI Responses | `AZURE_OPENAI_API_KEY` | `azure-openai-responses` |
 
+When Gondola credentials are available, zot refreshes its public text-model
+catalog in the background and adds the discovered models to `/model`.
+
 Example:
 
 ```bash

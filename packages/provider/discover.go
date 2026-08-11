@@ -227,7 +227,10 @@ func looksLikeChatModel(id string) bool {
 	return false
 }
 
-const openrouterDefaultBaseURL = "https://openrouter.ai/api/v1"
+const (
+	openrouterDefaultBaseURL = "https://openrouter.ai/api/v1"
+	gondolaDefaultBaseURL    = "https://api.gondola-ai.com/v1"
+)
 
 // DiscoverOpenRouter lists models from OpenRouter's public /models
 // endpoint (no auth). Per-token USD prices are converted to USD per 1M
@@ -318,6 +321,76 @@ func openrouterSupportsReasoning(params []string) bool {
 		}
 	}
 	return false
+}
+
+// DiscoverGondola lists text models from Gondola's public catalog. Gondola
+// reports prices directly in USD per 1M tokens, matching Model's units.
+func DiscoverGondola(ctx context.Context, baseURL string) ([]Model, error) {
+	if baseURL == "" {
+		baseURL = gondolaDefaultBaseURL
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+	client := &http.Client{Timeout: 15 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("gondola discover http %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var page struct {
+		Data []struct {
+			ID                  string `json:"id"`
+			DisplayName         string `json:"display_name"`
+			Modality            string `json:"modality"`
+			Endpoint            string `json:"endpoint"`
+			ContextLength       int    `json:"context_length"`
+			MaxCompletionTokens int    `json:"max_completion_tokens"`
+			SupportsReasoning   bool   `json:"supports_reasoning"`
+			Pricing             struct {
+				Input      float64 `json:"input_usd_per_mtok"`
+				Output     float64 `json:"output_usd_per_mtok"`
+				CacheRead  float64 `json:"cached_input_usd_per_mtok"`
+				CacheWrite float64 `json:"cache_write_usd_per_mtok"`
+			} `json:"pricing"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		return nil, fmt.Errorf("gondola discover parse: %w", err)
+	}
+	out := make([]Model, 0, len(page.Data))
+	for _, d := range page.Data {
+		if d.ID == "" || d.Modality != "text" || d.Endpoint != "/v1/chat/completions" {
+			continue
+		}
+		display := d.DisplayName
+		if display == "" {
+			display = d.ID
+		}
+		model := Model{ID: d.ID}
+		out = append(out, Model{
+			Provider:         "gondola",
+			ID:               d.ID,
+			DisplayName:      display,
+			ContextWindow:    d.ContextLength,
+			MaxOutput:        d.MaxCompletionTokens,
+			Reasoning:        d.SupportsReasoning,
+			AdaptiveThinking: usesAdaptiveThinking(model),
+			PriceInput:       d.Pricing.Input,
+			PriceOutput:      d.Pricing.Output,
+			PriceCacheRead:   d.Pricing.CacheRead,
+			PriceCacheWrite:  d.Pricing.CacheWrite,
+			BaseURL:          baseURL,
+			Source:           "live",
+		})
+	}
+	return out, nil
 }
 
 // perMillionTokens converts a per-token USD price string to USD per 1M

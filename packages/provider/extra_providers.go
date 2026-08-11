@@ -119,7 +119,7 @@ func NewOpenRouter(apiKey, baseURL string) Client {
 // NewGondola: Gondola, a USDC-paid marketplace gateway for Venice AI
 // inference. OpenAI Chat Completions-compatible.
 func NewGondola(apiKey, baseURL string) Client {
-	return NewOpenAICompat("gondola", apiKey, baseURL, "https://api.gondola-ai.com/v1")
+	return NewOpenAICompat("gondola", apiKey, baseURL, gondolaDefaultBaseURL)
 }
 
 // NewOpenCode is the opencode.ai Zen endpoint. Mixed APIs upstream; this

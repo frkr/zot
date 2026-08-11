@@ -346,6 +346,27 @@ func TestClaudeSonnet5Catalog(t *testing.T) {
 	}
 }
 
+func TestGondolaSeedCatalog(t *testing.T) {
+	kimi, err := FindModel("gondola", "kimi-k3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kimi.ContextWindow != 1000000 || kimi.MaxOutput != 131072 || !kimi.Reasoning || kimi.AdaptiveThinking {
+		t.Fatalf("unexpected Kimi K3 model: %+v", kimi)
+	}
+	if kimi.PriceInput != 1.1475 || kimi.PriceOutput != 5.7375 || kimi.PriceCacheRead != 0.11475 {
+		t.Fatalf("unexpected Kimi K3 pricing: %+v", kimi)
+	}
+
+	opus, err := FindModel("gondola", "claude-opus-5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opus.AdaptiveThinking || opus.PriceInput != 1.836 || opus.PriceOutput != 9.18 || opus.PriceCacheRead != 0.1836 || opus.PriceCacheWrite != 2.295 {
+		t.Fatalf("unexpected Claude Opus 5 model: %+v", opus)
+	}
+}
+
 func TestOpenAICompatAnthropicReasoningEffort(t *testing.T) {
 	c := NewOpenRouter("token", "").(*openaiClient)
 	wire, err := c.buildRequest(Request{
