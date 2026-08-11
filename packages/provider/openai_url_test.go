@@ -40,9 +40,13 @@ func TestChatCompletionsURL(t *testing.T) {
 }
 
 func TestGithubCopilotChatCompletionsURL(t *testing.T) {
-	client, ok := NewGithubCopilotClient("test-token").(*openaiClient)
+	router, ok := NewGithubCopilotClient("test-token").(*modelRouter)
 	if !ok {
-		t.Fatal("NewGithubCopilotClient did not return an openaiClient")
+		t.Fatal("NewGithubCopilotClient did not return a modelRouter")
+	}
+	client, ok := router.fallback.(*openaiClient)
+	if !ok {
+		t.Fatal("GitHub Copilot router fallback is not an openaiClient")
 	}
 
 	const want = "https://api.individual.githubcopilot.com/chat/completions"

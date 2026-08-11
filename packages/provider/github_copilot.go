@@ -181,20 +181,60 @@ func (t *copilotRefreshTransport) RoundTrip(req *http.Request) (*http.Response, 
 	return t.inner.RoundTrip(clone)
 }
 
+// copilotResponsesStripTransport removes the codex client's ChatGPT
+// OAuth identity headers before handing off to copilotRefreshTransport,
+// which applies the Copilot token and identity headers. The Copilot
+// proxy rejects requests that carry chatgpt-account-id / openai-beta.
+type copilotResponsesStripTransport struct {
+	inner http.RoundTripper
+}
+
+func (t *copilotResponsesStripTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	clone.Header.Del("chatgpt-account-id")
+	clone.Header.Del("openai-beta")
+	clone.Header.Del("originator")
+	return t.inner.RoundTrip(clone)
+}
+
+const copilotDefaultBaseURL = "https://api.individual.githubcopilot.com"
+
 // NewGithubCopilotClient returns a Copilot-pinned OpenAI-compat client.
 // The pat must be a GitHub Personal Access Token with Copilot access.
+//
+// Copilot exposes two wire protocols: most models use Chat Completions
+// (/chat/completions), but the newer GPT-5.6 family (sol/terra/luna) is
+// only served through the Responses API (/responses) and returns an
+// "chat/completions is not available for gpt models" error otherwise.
+// A model router dispatches each request to the matching wire client
+// based on the model's catalog API tag.
 func NewGithubCopilotClient(pat string) Client {
-	httpClient := &http.Client{
-		Transport: &copilotRefreshTransport{inner: http.DefaultTransport, pat: pat},
-		Timeout:   0,
-	}
+	refresh := &copilotRefreshTransport{inner: http.DefaultTransport, pat: pat}
+	completionsHTTP := &http.Client{Transport: refresh, Timeout: 0}
 	// Initial baseURL is a sane default; copilotRefreshTransport rewrites
 	// the host on every request based on the freshly-issued token.
-	return &openaiClient{
+	completions := &openaiClient{
 		apiKey:              pat, // unused at the wire level (transport overrides Auth) but kept for parity
-		baseURL:             "https://api.individual.githubcopilot.com",
+		baseURL:             copilotDefaultBaseURL,
 		chatCompletionsPath: "/chat/completions",
 		name:                "github-copilot",
-		http:                httpClient,
+		http:                completionsHTTP,
 	}
+
+	responsesHTTP := &http.Client{
+		Transport: &copilotResponsesStripTransport{inner: refresh},
+		Timeout:   0,
+	}
+	responses := &codexClient{
+		token:             pat, // unused at the wire level (transport overrides Auth) but kept for parity
+		baseURL:           copilotDefaultBaseURL + "/responses",
+		errorLabel:        "github copilot",
+		providerName:      "github-copilot",
+		disableCLIRouting: true,
+		http:              responsesHTTP,
+	}
+
+	return NewModelRouter("github-copilot", completions, map[string]Client{
+		APIResponses: &renamedClient{inner: responses, name: "github-copilot"},
+	})
 }
