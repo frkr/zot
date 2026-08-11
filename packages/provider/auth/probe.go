@@ -99,6 +99,12 @@ func ProbeAPIKey(ctx context.Context, provider, key string) error {
 			return err
 		}
 		req.Header.Set("authorization", "Bearer "+key)
+	case "gondola":
+		req, err = http.NewRequestWithContext(ctx, "GET", "https://api.gondola-ai.com/v1/models", nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("authorization", "Bearer "+key)
 	case "huggingface":
 		req, err = http.NewRequestWithContext(ctx, "GET", "https://router.huggingface.co/v1/models", nil)
 		if err != nil {

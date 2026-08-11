@@ -415,6 +415,10 @@ func resolveCredentialFull(ctx context.Context, provider, explicit string, comma
 		if v := os.Getenv("OPENROUTER_API_KEY"); v != "" {
 			return v, "apikey", "", nil
 		}
+	case "gondola":
+		if v := os.Getenv("GONDOLA_API_KEY"); v != "" {
+			return v, "apikey", "", nil
+		}
 	case "mistral":
 		if v := os.Getenv("MISTRAL_API_KEY"); v != "" {
 			return v, "apikey", "", nil

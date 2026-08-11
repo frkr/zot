@@ -112,6 +112,7 @@ show instructions and should be configured with environment variables.
 | Together AI | `TOGETHER_API_KEY` | `together` |
 | Hugging Face | `HF_TOKEN` | `huggingface` |
 | OpenRouter | `OPENROUTER_API_KEY` | `openrouter` |
+| Gondola | `GONDOLA_API_KEY` | `gondola` |
 | Mistral | `MISTRAL_API_KEY` | `mistral` |
 | ZAI | `ZAI_API_KEY` | `zai` |
 | Xiaomi MiMo | `XIAOMI_API_KEY` | `xiaomi` |

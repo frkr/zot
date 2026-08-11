@@ -254,6 +254,18 @@ var Catalog = []Model{
 		BaseURL: openrouterDefaultBaseURL,
 	},
 
+	// ---- Gondola ----
+	// Seed entry only: the default model returned by defaultModelForProvider
+	// so it resolves offline. Gondola is a USDC-paid marketplace gateway for
+	// Venice AI inference; prices/limits pulled live from
+	// https://api.gondola-ai.com/v1/models (2026-08-11).
+	{
+		Provider: "gondola", ID: "claude-opus-5", DisplayName: "Claude Opus 5 (Gondola)",
+		ContextWindow: 1000000, MaxOutput: 128000, Reasoning: true, AdaptiveThinking: true,
+		PriceInput: 1.836, PriceOutput: 9.18,
+		BaseURL: "https://api.gondola-ai.com/v1",
+	},
+
 	// ---- Speculative: Anthropic ----
 	{
 		Provider: "anthropic", ID: "claude-opus-4-5", DisplayName: "Claude Opus 4.5 (latest)",
