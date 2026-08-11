@@ -184,7 +184,7 @@ func defaultModelForProvider(prov string) string {
 	case "openrouter":
 		return "anthropic/claude-sonnet-4.5"
 	case "gondola":
-		return "claude-opus-5"
+		return "kimi-k3"
 	case "mistral":
 		return "mistral-large-latest"
 	case "zai":
