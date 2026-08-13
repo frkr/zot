@@ -254,6 +254,24 @@ var Catalog = []Model{
 		BaseURL: openrouterDefaultBaseURL,
 	},
 
+	// ---- Gondola ----
+	// Seed entries only: kimi-k3 is the default returned by
+	// defaultModelForProvider so it resolves offline. Gondola is a USDC-paid
+	// marketplace gateway for Venice AI inference; prices/limits pulled live
+	// from https://api.gondola-ai.com/v1/models (2026-08-11).
+	{
+		Provider: "gondola", ID: "kimi-k3", DisplayName: "Kimi K3 (Gondola)",
+		ContextWindow: 1000000, MaxOutput: 131072, Reasoning: true,
+		PriceInput: 1.1475, PriceOutput: 5.7375, PriceCacheRead: 0.11475,
+		BaseURL: gondolaDefaultBaseURL,
+	},
+	{
+		Provider: "gondola", ID: "claude-opus-5", DisplayName: "Claude Opus 5 (Gondola)",
+		ContextWindow: 1000000, MaxOutput: 128000, Reasoning: true, AdaptiveThinking: true,
+		PriceInput: 1.836, PriceOutput: 9.18, PriceCacheRead: 0.1836, PriceCacheWrite: 2.295,
+		BaseURL: gondolaDefaultBaseURL,
+	},
+
 	// ---- Speculative: Anthropic ----
 	{
 		Provider: "anthropic", ID: "claude-opus-4-5", DisplayName: "Claude Opus 4.5 (latest)",

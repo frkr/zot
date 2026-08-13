@@ -217,6 +217,13 @@ func refreshModels() {
 			all = append(all, live...)
 		}
 	}
+	if _, _, err := resolveCredentialForBackground(ctx, "gondola"); err == nil {
+		// Gondola's catalog is also public. Gate discovery on a credential so
+		// its text models only fill the picker for users of the provider.
+		if live, err := provider.DiscoverGondola(ctx, ""); err == nil {
+			all = append(all, live...)
+		}
+	}
 
 	if len(all) == 0 {
 		return

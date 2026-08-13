@@ -112,6 +112,7 @@ show instructions and should be configured with environment variables.
 | Together AI | `TOGETHER_API_KEY` | `together` |
 | Hugging Face | `HF_TOKEN` | `huggingface` |
 | OpenRouter | `OPENROUTER_API_KEY` | `openrouter` |
+| Gondola | `GONDOLA_API_KEY` | `gondola` |
 | Mistral | `MISTRAL_API_KEY` | `mistral` |
 | ZAI | `ZAI_API_KEY` | `zai` |
 | Xiaomi MiMo | `XIAOMI_API_KEY` | `xiaomi` |
@@ -128,6 +129,9 @@ show instructions and should be configured with environment variables.
 | Cloudflare Workers AI | `CLOUDFLARE_API_KEY` | `cloudflare-workers-ai` |
 | Cloudflare AI Gateway | `CLOUDFLARE_API_KEY` | `cloudflare-ai-gateway` |
 | Azure OpenAI Responses | `AZURE_OPENAI_API_KEY` | `azure-openai-responses` |
+
+When Gondola credentials are available, zot refreshes its public text-model
+catalog in the background and adds the discovered models to `/model`.
 
 Example:
 

@@ -185,6 +185,8 @@ func defaultModelForProvider(prov string) string {
 		return "moonshotai/Kimi-K2-Instruct"
 	case "openrouter":
 		return "anthropic/claude-sonnet-4.5"
+	case "gondola":
+		return "kimi-k3"
 	case "mistral":
 		return "mistral-large-latest"
 	case "zai":
@@ -226,7 +228,7 @@ func defaultModelForProvider(prov string) string {
 var knownProviders = []string{
 	"anthropic", "openai", "openai-codex", "openai-responses", "kimi", "deepseek", "google", "ollama", provider.LlamaCPPProviderID,
 	"moonshotai", "moonshotai-cn",
-	"cerebras", "groq", "xai", "together", "huggingface", "openrouter",
+	"cerebras", "groq", "xai", "together", "huggingface", "openrouter", "gondola",
 	"mistral", "zai",
 	"xiaomi", "xiaomi-token-plan-ams", "xiaomi-token-plan-cn", "xiaomi-token-plan-sgp",
 	"minimax", "minimax-cn",
@@ -837,6 +839,8 @@ func (r Resolved) NewClient() provider.Client {
 		return wrap(provider.NewHuggingFace(r.Credential, r.BaseURL))
 	case "openrouter":
 		return wrap(provider.NewOpenRouter(r.Credential, r.BaseURL))
+	case "gondola":
+		return wrap(provider.NewGondola(r.Credential, r.BaseURL))
 	case "zai":
 		return wrap(provider.NewZAI(r.Credential, r.BaseURL))
 	case "xiaomi":
@@ -1079,6 +1083,8 @@ func envVarName(provider string) string {
 		return "HF"
 	case "openrouter":
 		return "OPENROUTER"
+	case "gondola":
+		return "GONDOLA"
 	case "mistral":
 		return "MISTRAL"
 	case "zai":

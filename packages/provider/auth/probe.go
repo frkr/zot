@@ -12,10 +12,13 @@ import (
 // ProbeAPIKey verifies that key is valid for provider by making a
 // lightweight authenticated request. Returns nil on success.
 func ProbeAPIKey(ctx context.Context, provider, key string) error {
+	return probeAPIKey(ctx, provider, key, &http.Client{Timeout: 15 * time.Second})
+}
+
+func probeAPIKey(ctx context.Context, provider, key string, c *http.Client) error {
 	if key == "" {
 		return fmt.Errorf("empty key")
 	}
-	c := &http.Client{Timeout: 15 * time.Second}
 	var req *http.Request
 	var err error
 
@@ -95,6 +98,12 @@ func ProbeAPIKey(ctx context.Context, provider, key string) error {
 		req.Header.Set("authorization", "Bearer "+key)
 	case "openrouter":
 		req, err = http.NewRequestWithContext(ctx, "GET", "https://openrouter.ai/api/v1/models", nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("authorization", "Bearer "+key)
+	case "gondola":
+		req, err = http.NewRequestWithContext(ctx, "GET", "https://api.gondola-ai.com/v1/balance", nil)
 		if err != nil {
 			return err
 		}

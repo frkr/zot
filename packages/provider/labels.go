@@ -37,6 +37,8 @@ func ProviderLabel(id string) string {
 		return "Hugging Face"
 	case "openrouter":
 		return "OpenRouter"
+	case "gondola":
+		return "Gondola"
 	case "mistral":
 		return "Mistral"
 	case "zai":
