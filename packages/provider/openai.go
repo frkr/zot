@@ -276,7 +276,7 @@ func (c *openaiClient) buildRequest(req Request) (*oaiRequest, error) {
 		out.Messages = append(out.Messages, oaiMessage{Role: "system", Content: req.System})
 	}
 
-	deferredMode := isKimiDeferredModel(req.Model)
+	deferredMode := supportsDeferredTools(c.Name()) && isKimiDeferredModel(req.Model)
 	toolByName := make(map[string]Tool, len(req.Tools))
 	for _, t := range req.Tools {
 		toolByName[t.Name] = t
@@ -390,6 +390,21 @@ func (c *openaiClient) buildRequest(req Request) (*oaiRequest, error) {
 func isKimiDeferredModel(model string) bool {
 	model = strings.ToLower(model)
 	return model == "kimi-k3" || strings.HasSuffix(model, "/kimi-k3")
+}
+
+// supportsDeferredTools reports whether a provider speaks Moonshot's
+// deferred-tools handshake, where a tool that becomes available mid-conversation
+// is delivered on a system message carrying a `tools` array.
+//
+// That message is a Moonshot API extension, not OpenAI wire format: it has no
+// content, which a strict chat-completions schema rejects outright. Gondola,
+// which serves kimi-k3 on top of Venice, answers "messages.N: Invalid input"
+// and the conversation cannot recover, because the injection is rebuilt from
+// message history on every later turn. Providers outside this list take the
+// standard path instead, where an activated deferred tool joins the top-level
+// tools array.
+func supportsDeferredTools(provider string) bool {
+	return provider == "moonshotai" || provider == "moonshotai-cn"
 }
 
 func makeOAITool(t Tool) oaiTool {
