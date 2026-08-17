@@ -42,7 +42,7 @@ var slashCatalog = []slashCommand{
 	{Name: "/reasoning", Desc: "set the reasoning level"},
 	{Name: "/llama", Desc: "manage llama.cpp router models"},
 	{Name: "/sessions", Desc: "resume a previous session for this directory"},
-	{Name: "/session", Desc: "export the current session to a .zotsession file, or import one"},
+	{Name: "/session", Desc: "inspect, export, import, fork, or navigate the current session"},
 	{Name: "/jump", Desc: "scroll the chat to a previous turn (or /jump <text>)"},
 	{Name: "/compact", Desc: "summarize and replace the transcript to free up context"},
 	{Name: "/study", Desc: "read every file in the cwd (or a passed file/dir) so the agent has full context"},

@@ -5,10 +5,8 @@ import (
 )
 
 // sessionOpsDialog is the picker shown when the user runs `/session`
-// without an argument. Offers the two portable-file operations on
-// the current conversation: export (write the in-memory transcript
-// plus meta to a .zotsession file) and import (load a .zotsession
-// from another machine and swap it in as the active session).
+// without an argument. It offers timeline inspection, portable-file
+// operations, and branch navigation for the current conversation.
 //
 // Shape mirrors telegramDialog and logoutDialog: tiny list, arrow
 // keys to move, enter to pick, esc to cancel.
@@ -20,7 +18,7 @@ type sessionOpsDialog struct {
 
 type sessionOpsItem struct {
 	label  string
-	action string // "export" | "import"
+	action string // "timeline" | "export" | "import" | "fork" | "tree"
 	hint   string
 }
 
@@ -32,9 +30,7 @@ type sessionOpsAction struct {
 
 func newSessionOpsDialog() *sessionOpsDialog { return &sessionOpsDialog{} }
 
-// Open shows the picker. Items are usually both "export" and
-// "import" but the caller can suppress either (e.g. hide export
-// when the session is empty).
+// Open shows the picker with the actions supplied by the caller.
 func (d *sessionOpsDialog) Open(items []sessionOpsItem) bool {
 	if len(items) == 0 {
 		return false

@@ -482,6 +482,7 @@ type Interactive struct {
 	telegramBridge    *telegram.Bridge
 	sessionOpsDialog  *sessionOpsDialog
 	sessionTreeDialog *sessionTreeDialog
+	timeline          *timelineView
 	extPanel          *extPanelDialog
 	llamaConfigured   bool
 
@@ -643,6 +644,7 @@ func NewInteractive(cfg InteractiveConfig) *Interactive {
 		settingsDialog:    newSettingsDialog(),
 		sessionOpsDialog:  newSessionOpsDialog(),
 		sessionTreeDialog: newSessionTreeDialog(),
+		timeline:          newTimelineView(),
 		extPanel:          newExtPanelDialog(),
 		suggest:           newSlashSuggester(),
 		fileSuggest:       newFileSuggester(),
@@ -972,7 +974,7 @@ func (i *Interactive) chatCacheKeyLocked(cols int) (chatCacheKey, bool) {
 	// Live turns mutate streaming/tool-call state at high frequency;
 	// keep those on the old rebuild path. The cache targets the common
 	// idle case where only the editor contents changed between redraws.
-	if i.busy || i.streamOn || i.streamFlushPending {
+	if i.busy || i.streamOn || i.streamFlushPending || i.timeline.Active() {
 		return chatCacheKey{}, false
 	}
 	var rev uint64
@@ -1003,6 +1005,10 @@ func (i *Interactive) buildChatLocked(cols int) []string {
 		i.view.Messages = filterHiddenTranscriptMessages(i.agent.Messages())
 	} else {
 		i.view.Messages = nil
+	}
+	if i.timeline.Active() {
+		_, rows := i.cfg.Terminal.Size()
+		return i.timeline.Render(i.cfg.Theme, cols, rows, i.timelineDataLocked())
 	}
 	// Pacer flush: while the streaming pacer is still draining the
 	// buffer (i.e. EvAssistantMessage already fired but more runes
@@ -1161,6 +1167,25 @@ func (i *Interactive) sessionsRoot() string {
 func (i *Interactive) lastCols() int {
 	cols, _ := i.cfg.Terminal.Size()
 	return cols
+}
+
+func (i *Interactive) timelineData() timelineData {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.timelineDataLocked()
+}
+
+// timelineDataLocked snapshots the current provider-neutral context for the
+// read-only timeline. The caller must hold i.mu.
+func (i *Interactive) timelineDataLocked() timelineData {
+	data := timelineData{ContextUsed: i.lastCtxInput}
+	if model, err := provider.FindModel(i.cfg.Provider, i.cfg.Model); err == nil {
+		data.ContextMax = model.ContextWindow
+	}
+	if i.agent != nil {
+		data.System, data.Tools, data.Messages = i.agent.ContextSnapshot()
+	}
+	return data
 }
 
 // chatPage returns the number of chat rows currently visible, used
@@ -2027,6 +2052,7 @@ func (i *Interactive) confirmChildActive() bool {
 		i.settingsDialog.Active() ||
 		i.sessionOpsDialog.Active() ||
 		i.sessionTreeDialog.Active() ||
+		i.timeline.Active() ||
 		i.extPanel.Active()
 }
 
@@ -2293,6 +2319,24 @@ func (i *Interactive) handleKey(ctx context.Context, k tui.Key) (done bool) {
 		if i.cfg.Extensions != nil {
 			_ = i.cfg.Extensions.SendPanelKey(i.extPanel.ext, i.extPanel.id, panelKeyName(k), panelKeyText(k))
 		}
+		return false
+	}
+	if i.timeline.Active() {
+		data := i.timelineData()
+		act := i.timeline.HandleKey(k, data)
+		if act.Export {
+			path, err := i.timeline.Export("", data)
+			if err != nil {
+				i.timeline.SetNotice("export failed: " + err.Error())
+			} else {
+				i.timeline.SetNotice("exported to " + friendlyPath(path))
+			}
+		}
+		i.mu.Lock()
+		i.chatCacheValid = false
+		i.scrollOffset = 0
+		i.mu.Unlock()
+		i.invalidate()
 		return false
 	}
 	if i.jumpDialog.Active() {
@@ -6670,11 +6714,12 @@ func (h *telegramHost) Notify(level, message string) {
 }
 
 // openSessionOpsDialog shows the picker for `/session` with no arg.
-// Always offers export, import, fork, tree; the handlers bail with
-// a clear status message when the precondition isn't met (empty
-// transcript on fork; no parent/siblings on tree).
+// Always offers timeline, export, import, fork, and tree. The handlers bail
+// with a clear status message when a precondition is not met (empty transcript
+// on fork; no parent/siblings on tree).
 func (i *Interactive) openSessionOpsDialog() {
 	items := []sessionOpsItem{
+		{label: "timeline", action: "timeline", hint: "inspect context, messages, and tool calls"},
 		{label: "export", action: "export", hint: "write the current session to a .zotsession file"},
 		{label: "import", action: "import", hint: "load a .zotsession file into this directory"},
 		{label: "fork", action: "fork", hint: "branch from a past user message into a new session"},
@@ -6684,11 +6729,13 @@ func (i *Interactive) openSessionOpsDialog() {
 	i.invalidate()
 }
 
-// doSessionOp dispatches export, import, fork, or tree. arg is the
+// doSessionOp dispatches timeline, export, import, fork, or tree. arg is the
 // optional positional argument from e.g. /session export <path>
-// or /session import <path>; fork and tree ignore it.
+// or /session import <path>; timeline, fork, and tree ignore it.
 func (i *Interactive) doSessionOp(action, arg string) {
 	switch action {
+	case "timeline":
+		i.openTimeline()
 	case "export":
 		i.doSessionExport(arg)
 	case "import":
@@ -6699,10 +6746,24 @@ func (i *Interactive) doSessionOp(action, arg string) {
 		i.doSessionTree()
 	default:
 		i.mu.Lock()
-		i.statusErr = "unknown /session action: " + action + " (use export, import, fork, or tree)"
+		i.statusErr = "unknown /session action: " + action + " (use timeline, export, import, fork, or tree)"
 		i.mu.Unlock()
 		i.invalidate()
 	}
+}
+
+func (i *Interactive) openTimeline() {
+	i.mu.Lock()
+	if i.timeline == nil {
+		i.timeline = newTimelineView()
+	}
+	i.timeline.Open(i.timelineDataLocked())
+	i.chatCacheValid = false
+	i.scrollOffset = 0
+	i.statusErr = ""
+	i.statusOK = ""
+	i.mu.Unlock()
+	i.invalidate()
 }
 
 // doSessionExport writes the live session file to destination path

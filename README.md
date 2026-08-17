@@ -293,7 +293,7 @@ Slash command names are case-insensitive in the TUI and messaging backends; argu
 | `/reasoning` | Set the reasoning level for subsequent model calls. |
 | `/llama` | Connect to the configured llama.cpp router, load, unload, or remove cached models, and search/download GGUF models from Hugging Face with live progress. Shown after llama.cpp login is configured. |
 | `/sessions` | Resume a previous session for this directory. |
-| `/session` | Four ops on the current session: `export` to a portable `.zotsession` file, `import` one back in, `fork` from a past user message into a new branch, `tree` to switch between branches. Opens a picker without an argument; direct forms: `/session export [path]`, `/session import <path>`, `/session fork`, `/session tree`. Default export destination is `~/Downloads`. |
+| `/session` | Five ops on the current session: inspect its `timeline`, `export` to a portable `.zotsession` file, `import` one back in, `fork` from a past user message, or view its branch `tree`. Opens a picker without an argument; direct forms include `/session timeline`, `/session export [path]`, `/session import <path>`, `/session fork`, and `/session tree`. Default export destination is `~/Downloads`. |
 | `/jump` | Scroll the chat to a previous turn (or `/jump <text>` to filter). |
 | `/btw` | Side chat with full context that doesn't add to the main thread. |
 | `/swarm` | Spawn, monitor, and chat with background subagents. Each runs in parallel with your main session and shares its working directory. |
@@ -320,8 +320,9 @@ Shows previous sessions for the current working directory, newest first, with ti
 
 ### `/session`
 
-Four ops on the current session. `/session` alone opens a picker; each is also runnable directly.
+Five ops on the current session. `/session` alone opens a picker; each is also runnable directly.
 
+- **`/session timeline`**. Replaces the chat area with a read-only timeline of the current system prompt, user and assistant messages, and tool calls. The header shows provider-reported context usage and an estimated split between system prompt, tool definitions, and messages. The split uses a simple byte estimate, so it is directional rather than tokenizer-exact. Use `up` / `down` or `pgup` / `pgdn` to select an event, `tab` / `shift+tab` to inspect its summary, payload, result, schema, and transcript-derived timing, and `/` to search. `ctrl+e` writes a private-permission JSON export to `~/Downloads` (falling back to the home directory). Images are represented by MIME type and byte size instead of embedding their data. Press `esc` to return to chat.
 - **`/session export [path]`**. Writes the running transcript to a portable `.zotsession` file. Default destination is `~/Downloads/<timestamp>-<session-id>-<prompt-slug>.zotsession`. Pass a path to override; a directory is fine (a dated name is built inside), a bare name gets `.zotsession` appended. The meta's cwd is stripped on the way out so the recipient doesn't see your filesystem layout.
 
   **What's included.** Only the main chat thread of the running session — messages, tool calls, tool results, compactions, and usage. **`/swarm` subagents are NOT included.** Their transcripts, unix-socket inboxes, and per-agent session files are all machine-local; a `.zotsession` is just a chat transcript and has no way to revive a unix socket on another box. If you want the conversation, copy it out of the dashboard manually.

@@ -212,6 +212,17 @@ func (a *Agent) Messages() []provider.Message {
 	return out
 }
 
+// ContextSnapshot returns the provider-neutral inputs that make up the
+// current model context. Hosts use the snapshot for read-only inspection
+// without racing a tool-registry replacement or transcript append.
+func (a *Agent) ContextSnapshot() (system string, tools []provider.Tool, messages []provider.Message) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	messages = make([]provider.Message, len(a.messages))
+	copy(messages, a.messages)
+	return a.System, a.Tools.Specs(), messages
+}
+
 // Revision returns a monotonically increasing transcript version.
 // It is cheap to query and changes whenever Messages() would return
 // different transcript content because of append/set operations.
