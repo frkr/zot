@@ -417,6 +417,10 @@ func printHelp(out *os.File, version string) {
 		row{"zot update", "download and install the latest release"},
 		row{"zot update --check", "show whether a new release is available"},
 	)
+	section("session management",
+		row{"zot sessions prune", "select and delete sessions for directories that no longer exist"},
+		row{"zot sessions prune --dry-run", "list stale session groups without deleting them"},
+	)
 	section("telegram",
 		row{"zot telegram-bot setup", "configure a telegram bot (from BotFather)"},
 		row{"zot telegram-bot run", "foreground bridge (ctrl+c to stop)"},
