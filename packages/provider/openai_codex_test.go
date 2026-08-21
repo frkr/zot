@@ -263,3 +263,66 @@ func TestCodexSubscriptionAlwaysUsesCodexCLIShape(t *testing.T) {
 		t.Fatalf("request missing prompt_cache_key: %s", body.String())
 	}
 }
+
+func TestCodexRetriesUnsupportedPromptCacheRetentionWithNativeIdentity(t *testing.T) {
+	c := NewOpenAICodex("token", "acct", "https://example.test/backend-api/codex/responses").(*codexClient)
+	var headers []http.Header
+	var bodies []string
+	c.http.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		headers = append(headers, r.Header.Clone())
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bodies = append(bodies, string(body))
+		if len(headers) == 1 {
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+					"error": {
+						"message": "prompt_cache_retention is not supported on this model",
+						"type": "invalid_request_error",
+						"param": "prompt_cache_retention",
+						"code": "invalid_parameter"
+					}
+				}`)),
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+		}, nil
+	})
+
+	events, err := c.Stream(context.Background(), Request{
+		Model:    "gpt-5.6-sol",
+		Messages: []Message{{Role: RoleUser, Content: []Content{TextBlock{Text: "hi"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event := range events {
+		if done, ok := event.(EventDone); ok && done.Err != nil {
+			t.Fatalf("retry stream failed: %v", done.Err)
+		}
+	}
+
+	if len(headers) != 2 {
+		t.Fatalf("requests = %d, want 2", len(headers))
+	}
+	if got := headers[0].Get("originator"); got != "codex_cli_rs" {
+		t.Fatalf("initial originator = %q", got)
+	}
+	if got := headers[1].Get("originator"); got != "zot" {
+		t.Fatalf("retry originator = %q", got)
+	}
+	sessionID := headers[1].Get("session-id")
+	if sessionID == "" || headers[1].Get("x-client-request-id") != sessionID {
+		t.Fatalf("retry session headers = %#v", headers[1])
+	}
+	if len(bodies) != 2 || !strings.Contains(bodies[1], `"prompt_cache_key"`) {
+		t.Fatalf("retry body did not preserve prompt cache key: %v", bodies)
+	}
+}

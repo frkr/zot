@@ -374,54 +374,90 @@ func (c *codexClient) Stream(ctx context.Context, req Request) (<-chan Event, er
 	if c.modelName != nil {
 		wire.Model = c.modelName(wire.Model)
 	}
-	var codexCLISessionID string
-	if !c.disableCLIRouting && (c.cliRoutingAll || usesCodexCLIRouting(wire.Model)) {
-		codexCLISessionID = newCodexSessionID()
-		wire.PromptCacheKey = codexCLISessionID
+	useCLIRouting := !c.disableCLIRouting && (c.cliRoutingAll || usesCodexCLIRouting(wire.Model))
+	var codexSessionID string
+	if useCLIRouting {
+		codexSessionID = newCodexSessionID()
+		wire.PromptCacheKey = codexSessionID
 	}
 	body, err := json.Marshal(wire)
 	if err != nil {
 		return nil, err
 	}
 
-	newReq := func() (*http.Request, error) {
-		httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL, bytes.NewReader(body))
-		if err != nil {
-			return nil, err
+	newReq := func(cliRouting bool) func() (*http.Request, error) {
+		return func() (*http.Request, error) {
+			httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL, bytes.NewReader(body))
+			if err != nil {
+				return nil, err
+			}
+			httpReq.Header.Set("content-type", "application/json")
+			httpReq.Header.Set("accept", "text/event-stream")
+			httpReq.Header.Set("authorization", "Bearer "+c.token)
+			httpReq.Header.Set("chatgpt-account-id", c.accountID)
+			httpReq.Header.Set("openai-beta", "responses=experimental")
+			if codexSessionID != "" {
+				httpReq.Header.Set("session-id", codexSessionID)
+				httpReq.Header.Set("x-client-request-id", codexSessionID)
+			}
+			if cliRouting {
+				// The ChatGPT Codex backend normally requires the Codex CLI
+				// request identity. A narrow fallback below uses zot's identity
+				// when that compatibility shape selects unsupported cache policy.
+				httpReq.Header.Set("originator", "codex_cli_rs")
+				httpReq.Header.Set("user-agent", "codex_cli_rs/0.0.0")
+			} else {
+				httpReq.Header.Set("originator", "zot")
+				httpReq.Header.Set("user-agent", fmt.Sprintf("zot (%s %s)", runtime.GOOS, runtime.GOARCH))
+			}
+			return httpReq, nil
 		}
-		httpReq.Header.Set("content-type", "application/json")
-		httpReq.Header.Set("accept", "text/event-stream")
-		httpReq.Header.Set("authorization", "Bearer "+c.token)
-		httpReq.Header.Set("chatgpt-account-id", c.accountID)
-		httpReq.Header.Set("openai-beta", "responses=experimental")
-		if codexCLISessionID != "" {
-			// The ChatGPT Codex backend only admits (and reliably serves)
-			// requests that follow Codex CLI routing metadata; other client
-			// identities are load-shed with "servers are currently
-			// overloaded" errors even when capacity is fine.
-			httpReq.Header.Set("originator", "codex_cli_rs")
-			httpReq.Header.Set("session-id", codexCLISessionID)
-			httpReq.Header.Set("user-agent", "codex_cli_rs/0.0.0")
-		} else {
-			httpReq.Header.Set("originator", "zot")
-			httpReq.Header.Set("user-agent", fmt.Sprintf("zot (%s %s)", runtime.GOOS, runtime.GOARCH))
-		}
-		return httpReq, nil
 	}
 
-	resp, err := doStreamWithRetry(ctx, c.http, newReq)
+	resp, err := doStreamWithRetry(ctx, c.http, newReq(useCLIRouting))
 	if err != nil {
 		return nil, fmt.Errorf("openai-codex: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
+		status := resp.StatusCode
+		responseBody, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return nil, fmt.Errorf("openai-codex: http %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		if !useCLIRouting || !unsupportedPromptCacheRetention(status, responseBody) {
+			return nil, fmt.Errorf("openai-codex: http %d: %s", status, strings.TrimSpace(string(responseBody)))
+		}
+		resp, err = doStreamWithRetry(ctx, c.http, newReq(false))
+		if err != nil {
+			return nil, fmt.Errorf("openai-codex: cache compatibility retry: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			status = resp.StatusCode
+			responseBody, _ = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return nil, fmt.Errorf("openai-codex: http %d: %s", status, strings.TrimSpace(string(responseBody)))
+		}
 	}
 
 	out := make(chan Event, 16)
 	go c.runStream(ctx, resp, req, out)
 	return out, nil
+}
+
+func unsupportedPromptCacheRetention(status int, body []byte) bool {
+	if status != http.StatusBadRequest {
+		return false
+	}
+	var payload struct {
+		Error struct {
+			Message string `json:"message"`
+			Param   string `json:"param"`
+			Code    string `json:"code"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(body, &payload) != nil || payload.Error.Param != "prompt_cache_retention" {
+		return false
+	}
+	message := strings.ToLower(payload.Error.Message)
+	return payload.Error.Code == "invalid_parameter" || strings.Contains(message, "not supported")
 }
 
 func (c *codexClient) runStream(ctx context.Context, resp *http.Response, req Request, out chan<- Event) {
