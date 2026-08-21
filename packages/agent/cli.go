@@ -231,7 +231,7 @@ func runWithArgsRaw(rawArgs []string, version string) error {
 		return err
 	}
 	if args.Help {
-		PrintHelp(version)
+		printHelp(os.Stdout, version)
 		return nil
 	}
 	if args.Version {

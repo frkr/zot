@@ -1,6 +1,12 @@
 package agent
 
-import "testing"
+import (
+	"bytes"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+)
 
 func TestParseArgsExplicitEmptySystemPromptIsSet(t *testing.T) {
 	args, err := ParseArgs([]string{"--system-prompt", ""})
@@ -79,5 +85,53 @@ func TestParseArgsStream(t *testing.T) {
 	}
 	if args.Mode != ModeStream || args.Prompt != "hi" {
 		t.Fatalf("Mode=%q Prompt=%q", args.Mode, args.Prompt)
+	}
+}
+
+func TestRunHelpHelperProcess(t *testing.T) {
+	if os.Getenv("ZOT_HELP_HELPER") == "" {
+		return
+	}
+	if err := runWithArgsRaw(strings.Fields(os.Getenv("ZOT_HELP_HELPER")), "test"); err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func TestHelpOutputStreams(t *testing.T) {
+	run := func(args string) (stdout, stderr string, err error) {
+		t.Helper()
+		cmd := exec.Command(os.Args[0], "-test.run=^TestRunHelpHelperProcess$")
+		cmd.Env = append(os.Environ(), "ZOT_HELP_HELPER="+args)
+		var outBuf, errBuf bytes.Buffer
+		cmd.Stdout = &outBuf
+		cmd.Stderr = &errBuf
+		err = cmd.Run()
+		return outBuf.String(), errBuf.String(), err
+	}
+
+	stdout, stderr, err := run("--help")
+	if err != nil {
+		t.Fatalf("--help returned %v; stderr:\n%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "zot. yet another coding agent harness.") {
+		t.Fatalf("stdout does not contain help text:\n%s", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if strings.Contains(stdout, "\x1b[") {
+		t.Fatalf("redirected help contains ANSI escapes: %q", stdout)
+	}
+
+	stdout, stderr, err = run("--unknown")
+	if err == nil {
+		t.Fatal("unknown flag exited successfully")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty for an argument error", stdout)
+	}
+	if !strings.Contains(stderr, "zot. yet another coding agent harness.") {
+		t.Fatalf("stderr does not contain help text:\n%s", stderr)
 	}
 }

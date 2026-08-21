@@ -325,12 +325,16 @@ func ParseArgs(in []string) (Args, error) {
 	return a, nil
 }
 
-// PrintHelp writes the help text to stderr. When stderr is a TTY it
-// uses the same palette as zot's TUI; when redirected it falls back to
-// plain text with no ANSI escapes.
+// PrintHelp writes the help text to stderr for argument-error paths.
 func PrintHelp(version string) {
+	printHelp(os.Stderr, version)
+}
+
+// printHelp writes help to out. When out is a TTY it uses the same palette as
+// zot's TUI; when redirected it falls back to plain text with no ANSI escapes.
+func printHelp(out *os.File, version string) {
 	th := tui.Dark
-	fd := int(os.Stderr.Fd())
+	fd := int(out.Fd())
 	useColor := term.IsTerminal(fd)
 	style := func(c int, s string) string {
 		if !useColor {
@@ -364,35 +368,35 @@ func PrintHelp(version string) {
 	}
 	type row struct{ left, right string }
 	section := func(title string, rows ...row) {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, assistant(title))
-		fmt.Fprintln(os.Stderr, rule)
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, assistant(title))
+		fmt.Fprintln(out, rule)
 		narrow := width < 100
 		for _, r := range rows {
 			if narrow {
-				fmt.Fprintf(os.Stderr, "  %s\n", fg(r.left))
-				fmt.Fprintf(os.Stderr, "    %s\n", muted(r.right))
-				fmt.Fprintln(os.Stderr)
+				fmt.Fprintf(out, "  %s\n", fg(r.left))
+				fmt.Fprintf(out, "    %s\n", muted(r.right))
+				fmt.Fprintln(out)
 				continue
 			}
 			left := r.left
 			if len([]rune(left)) < leftW {
 				left += strings.Repeat(" ", leftW-len([]rune(left)))
 			}
-			fmt.Fprintf(os.Stderr, "  %s    %s\n", fg(left), muted(r.right))
+			fmt.Fprintf(out, "  %s    %s\n", fg(left), muted(r.right))
 		}
 	}
 
-	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(out)
 	var headline string
 	if useColor {
 		headline = th.AccentBar(th.Assistant) + assistant(tui.Bold("zot. yet another coding agent harness."))
 	} else {
 		headline = "zot. yet another coding agent harness."
 	}
-	fmt.Fprintln(os.Stderr, headline)
-	fmt.Fprintln(os.Stderr, muted("ask anything, or type /help inside the tui to see commands."))
-	fmt.Fprintf(os.Stderr, "%s %s\n", muted("version:"), fg(version))
+	fmt.Fprintln(out, headline)
+	fmt.Fprintln(out, muted("ask anything, or type /help inside the tui to see commands."))
+	fmt.Fprintf(out, "%s %s\n", muted("version:"), fg(version))
 
 	section("modes",
 		row{"zot", "interactive tui"},
@@ -457,7 +461,7 @@ func PrintHelp(version string) {
 		row{"-h, --help", "show this help"},
 		row{"-v, --version", "show version info"},
 	)
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, assistant("see also: docs/extensions.md, docs/rpc.md, docs/skills.md"))
-	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, assistant("see also: docs/extensions.md, docs/rpc.md, docs/skills.md"))
+	fmt.Fprintln(out)
 }
