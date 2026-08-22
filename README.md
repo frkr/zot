@@ -430,17 +430,19 @@ This is a guardrail against accidents, not a hard security boundary. If you need
 
 Every interactive or print/json run (unless `--no-session`) writes a JSONL transcript under `$ZOT_HOME/sessions/<cwd-hash>/`. Resume any of them with `--continue`, `--resume`, `--session <path>`, or interactively via `/sessions` inside the TUI. Empty sessions (the user exited without prompting) are deleted on close so the list stays tidy.
 
-Use `zot sessions prune` outside the TUI to find sessions whose recorded working directories no longer exist. The command groups sessions by directory, shows the number of stored sessions, lets you select groups, and requires confirmation before permanently deleting files. It preserves sessions when a directory check fails for any reason other than "not found", which avoids deleting sessions for inaccessible or temporarily unavailable mounts. It also rechecks each selected directory immediately before deletion.
+Use `zot sessions prune` outside the TUI to find sessions whose recorded working directories no longer exist. The command groups sessions by directory, shows the number of stored sessions, lets you select groups, and requires confirmation before permanently deleting files. It preserves sessions when a directory check fails with an error other than "not found" and rechecks each selected directory immediately before deletion. A deleted directory and a path hidden by some unmounted filesystems are indistinguishable, so review the selection and ensure remote filesystems are mounted before deleting missing-directory groups.
 
-For inspection or scripts, use these non-interactive options:
+Use `--older-than` to prune sessions by last activity instead, including sessions for directories that still exist. Supported age units are `m` (minutes), `h` (hours), `d` (24-hour days), `w` (7-day weeks), `mo` (calendar months), and `y` (calendar years). Add `--cwd PATH` to limit age pruning to one working directory. The session file is checked again immediately before deletion and preserved if it has become active recently.
 
 ```sh
-zot sessions prune --dry-run    # list stale groups without deleting
-zot sessions prune --all        # select every stale group, then confirm
-zot sessions prune --all --yes  # delete every stale group without prompting
+zot sessions prune --dry-run                         # list missing-directory groups
+zot sessions prune --older-than 4h --dry-run         # inspect sessions inactive for four hours
+zot sessions prune --older-than 1mo --cwd ~/project  # select old sessions for one directory
+zot sessions prune --older-than 1y --all              # select every match, then confirm
+zot sessions prune --older-than 30d --all --yes       # delete every match without prompting
 ```
 
-Malformed, unreadable, symlinked, and non-absolute session entries are reported and preserved. The scan includes normal sessions and named-agent sessions below `$ZOT_HOME/sessions/`; explicit session files stored elsewhere and swarm-agent state are not included.
+`--all` selects every match and still asks for confirmation. Adding `--yes` makes deletion non-interactive and requires `--all`. Malformed, unreadable, symlinked, and non-absolute session entries are reported and preserved during missing-directory pruning. The scan includes normal sessions and named-agent sessions below `$ZOT_HOME/sessions/`; explicit session files stored elsewhere and swarm-agent state are not included.
 
 ## Providers
 

@@ -418,8 +418,9 @@ func printHelp(out *os.File, version string) {
 		row{"zot update --check", "show whether a new release is available"},
 	)
 	section("session management",
-		row{"zot sessions prune", "select and delete sessions for directories that no longer exist"},
-		row{"zot sessions prune --dry-run", "list stale session groups without deleting them"},
+		row{"zot sessions prune", "select sessions for directories that no longer exist"},
+		row{"zot sessions prune --older-than 30d", "select sessions by time since last activity"},
+		row{"zot sessions prune --dry-run", "list matching session groups without deleting them"},
 	)
 	section("telegram",
 		row{"zot telegram-bot setup", "configure a telegram bot (from BotFather)"},
