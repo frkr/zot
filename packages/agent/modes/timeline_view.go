@@ -167,7 +167,7 @@ func (v *timelineView) Render(th tui.Theme, width, height int, data timelineData
 	lines := []string{frameHeader(th, "timeline", width)}
 	lines = append(lines, renderTimelineContext(th, width, data)...)
 
-	hint := "up/down select  pgup/pgdn move  tab details  / search  ctrl+e export  esc chat"
+	hint := "↑/↓ select  pgup/pgdn move  tab details  / search  ctrl+e export  esc chat"
 	if v.searching {
 		hint = "search: " + v.filter + "_  (esc clears)"
 	}
@@ -397,15 +397,43 @@ func timelineColor(th tui.Theme, entry timelineEntry, line string) string {
 }
 
 func renderTimelineTabs(th tui.Theme, width, selected int) string {
-	var tabs []string
-	for idx, name := range timelineTabNames {
+	if selected < 0 || selected >= len(timelineTabNames) || width < 1 {
+		return ""
+	}
+	start, end := selected, selected+1
+	for start > 0 || end < len(timelineTabNames) {
+		grew := false
+		if start > 0 && timelineTabsWidth(start-1, end) <= width {
+			start--
+			grew = true
+		}
+		if end < len(timelineTabNames) && timelineTabsWidth(start, end+1) <= width {
+			end++
+			grew = true
+		}
+		if !grew {
+			break
+		}
+	}
+
+	tabs := make([]string, 0, end-start)
+	for idx := start; idx < end; idx++ {
+		name := timelineTabNames[idx]
 		if idx == selected {
 			tabs = append(tabs, tui.Bold(th.FG256(th.Accent, "["+name+"]")))
 		} else {
 			tabs = append(tabs, th.FG256(th.Muted, " "+name+" "))
 		}
 	}
-	return fitTimelineLine(strings.Join(tabs, "  "), width)
+	return strings.Join(tabs, "  ")
+}
+
+func timelineTabsWidth(start, end int) int {
+	width := 2 * (end - start - 1)
+	for idx := start; idx < end; idx++ {
+		width += runewidth.StringWidth(timelineTabNames[idx]) + 2
+	}
+	return width
 }
 
 func renderTimelineDetail(th tui.Theme, width int, entry timelineEntry, tab, maxRows int) []string {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mattn/go-runewidth"
+
 	"github.com/patriceckhart/zot/packages/provider"
 	"github.com/patriceckhart/zot/packages/tui"
 )
@@ -72,6 +74,32 @@ func TestBuildTimelineEntriesPairsToolDetails(t *testing.T) {
 	}
 }
 
+func TestTimelineNavigationKeysMoveSelection(t *testing.T) {
+	data := timelineTestData()
+	view := newTimelineView()
+	view.Open(data)
+	last := len(buildTimelineEntries(data)) - 1
+	if view.cursor != last {
+		t.Fatalf("initial cursor = %d, want %d", view.cursor, last)
+	}
+	view.HandleKey(tui.Key{Kind: tui.KeyUp}, data)
+	if view.cursor != last-1 {
+		t.Fatalf("cursor after up = %d, want %d", view.cursor, last-1)
+	}
+	view.HandleKey(tui.Key{Kind: tui.KeyDown}, data)
+	if view.cursor != last {
+		t.Fatalf("cursor after down = %d, want %d", view.cursor, last)
+	}
+	view.HandleKey(tui.Key{Kind: tui.KeyPageUp}, data)
+	if view.cursor != 0 {
+		t.Fatalf("cursor after page up = %d, want 0", view.cursor)
+	}
+	view.HandleKey(tui.Key{Kind: tui.KeyPageDown}, data)
+	if view.cursor != last {
+		t.Fatalf("cursor after page down = %d, want %d", view.cursor, last)
+	}
+}
+
 func TestTimelineSearchAndTabs(t *testing.T) {
 	data := timelineTestData()
 	view := newTimelineView()
@@ -91,6 +119,20 @@ func TestTimelineSearchAndTabs(t *testing.T) {
 	view.HandleKey(tui.Key{Kind: tui.KeyEsc}, data)
 	if view.filter != "" || !view.Active() {
 		t.Fatal("first esc should clear search without closing timeline")
+	}
+}
+
+func TestTimelineTabsKeepSelectedTabVisible(t *testing.T) {
+	const width = 30
+	for selected, name := range timelineTabNames {
+		rendered := renderTimelineTabs(tui.Theme{}, width, selected)
+		plain := stripANSIBytes(rendered)
+		if !strings.Contains(plain, "["+name+"]") {
+			t.Errorf("selected tab %q not visible in %q", name, plain)
+		}
+		if got := runewidth.StringWidth(plain); got > width {
+			t.Errorf("tabs width = %d, want <= %d: %q", got, width, plain)
+		}
 	}
 }
 

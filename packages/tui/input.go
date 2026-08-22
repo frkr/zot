@@ -165,12 +165,21 @@ func (r *Reader) readEscape() (Key, error) {
 	case '[':
 		return r.readCSI()
 	case 'O':
-		// SS3 sequences (function keys in some terminals).
+		// SS3 sequences. Terminals in application cursor mode use these
+		// for arrows, while some terminals also use them for Home and End.
 		c, err := r.src()
 		if err != nil {
 			return Key{}, err
 		}
 		switch c {
+		case 'A':
+			return Key{Kind: KeyUp}, nil
+		case 'B':
+			return Key{Kind: KeyDown}, nil
+		case 'C':
+			return Key{Kind: KeyRight}, nil
+		case 'D':
+			return Key{Kind: KeyLeft}, nil
 		case 'H':
 			return Key{Kind: KeyHome}, nil
 		case 'F':
