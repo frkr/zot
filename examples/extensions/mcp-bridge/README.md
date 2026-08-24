@@ -58,6 +58,65 @@ This extension reads MCP server configurations from standard locations (same for
 
 The model initially sees one small loader tool, `mcp__search_tools`. It searches cached MCP tool names and descriptions locally, activates up to eight relevant definitions by default, and then calls the selected MCP tool normally. This keeps large MCP installations compatible with providers that limit request or tool-schema size.
 
+### Phone pairing with Build Remote Agent
+
+[Build Remote Agent](https://grokbuildremote.com/) is an optional, third-party integration that lets a paired phone observe terminal sessions and veto actions. It is an independent Linespotting AB product and is not affiliated with xAI or SpaceX.
+
+#### Install the agent
+
+Pin release `v0.6.0` and verify the binary against the checksum listed here. The release's own `SHA256SUMS` file does not currently match five of its six binary assets, so do not use that file as the trust source. These checksums were verified directly against the release assets on 2026-08-24:
+
+```text
+62673a6856342a87d4a2a659bc1de92200aa19a5b60d88d252254940820f0b7f  gbr-agent-darwin-amd64
+7baa1a8e214cd71b60e3f2b5063713e00ff740939749c3cab3d702784a1432f8  gbr-agent-darwin-arm64
+fb54724367882497f2e8e05e40ecdeb4be29e008e6c865fc5c426cf464e6ad6e  gbr-agent-linux-amd64
+9e9d7ca45bb0c4ded9d04226136013e9b64ae30f16bcf03069d35e9c38171cb9  gbr-agent-linux-arm64
+40355b2be6cd68f3be68f2a06dfd30307ec1a60f16f87f1d6174012b35aa4a49  gbr-agent-windows-amd64.exe
+8fb9efcbc7e2ac91c11964944bf0f45e31bb23f4356d9dcb4b305d7cb9b0fe8c  gbr-agent-windows-arm64.exe
+```
+
+This macOS Apple Silicon example downloads, verifies, and installs the binary. Change both `ASSET` and `SHA` for another platform.
+
+```bash
+VER=v0.6.0
+ASSET=gbr-agent-darwin-arm64
+SHA=7baa1a8e214cd71b60e3f2b5063713e00ff740939749c3cab3d702784a1432f8
+BASE="https://github.com/LinespottingOrg/GrokBuildRemote-Agents/releases/download/$VER"
+curl -fsSL -o "$ASSET" "$BASE/$ASSET"
+if command -v sha256sum >/dev/null 2>&1; then
+  printf '%s  %s\n' "$SHA" "$ASSET" | sha256sum -c -
+else
+  printf '%s  %s\n' "$SHA" "$ASSET" | shasum -a 256 -c -
+fi
+mkdir -p "$HOME/.local/bin"
+install -m 0755 "$ASSET" "$HOME/.local/bin/gbr-agent"
+export PATH="$HOME/.local/bin:$PATH"
+gbr-agent version  # must report v0.6.0
+gbr-agent pair
+gbr-agent run
+```
+
+Keep `gbr-agent run` running. Its Bot API should only be available over loopback:
+
+```bash
+curl -sS http://127.0.0.1:8788/health
+curl -sS http://127.0.0.1:8788/v1/sessions
+```
+
+#### Install the MCP server
+
+The MCP server requires Node.js 20 or newer. Pin its source instead of cloning the mutable default branch:
+
+```bash
+git clone --branch v0.6.0 --depth 1 https://github.com/LinespottingOrg/GrokBuildRemote-Agents.git
+cd GrokBuildRemote-Agents/mcp/gbr-mcp
+npm install --ignore-scripts
+MCP_PATH="$(pwd)/bin/gbr-mcp.js"
+node "$MCP_PATH" --diagnose
+```
+
+The `v0.6.0` source does not include a package lock, so its npm dependency resolution is not fully reproducible. Review the package manifest and resolved dependency tree before use. Put the absolute value of `MCP_PATH` in the configuration below. Never put mailbox keys in `mcp.json`.
+
 ## Configuration
 
 Config files are loaded from two locations (project overrides global per-server):
@@ -84,6 +143,13 @@ Standard MCP config — same as Claude Desktop, with zot-specific extensions:
       "connectTimeout": 30,                // connection timeout (seconds)
       "requestTimeout": 60,                // per-request timeout (seconds)
       "idleTimeout": 300                   // idle timeout before stopping (seconds)
+    },
+
+    // Build Remote Agent (gbr/1). Pair with `gbr-agent pair`, then keep
+    // `gbr-agent run` running. Use an absolute path to the pinned MCP checkout.
+    "gbr": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/GrokBuildRemote-Agents/mcp/gbr-mcp/bin/gbr-mcp.js"]
     },
 
     // ── Streamable HTTP transport (modern HTTP) ─────────────────────────────
@@ -289,3 +355,6 @@ Tested MCP servers:
 
 Note: grep.app uses the root endpoint `/`. Streamable HTTP protocol headers are handled automatically by the bridge and should not be written to `mcp.json`.
 
+## What the paired phone sees
+
+Build Remote Agent exposes terminal windows on the machine. Its loopback `:8788` endpoint is a Bot API that returns JSON, not an MCP endpoint or terminal transcript. See the third-party's [current phone visibility documentation](https://github.com/LinespottingOrg/GrokBuildRemote-Agents/blob/main/docs/WHAT-THE-PHONE-SEES.md) for details.
