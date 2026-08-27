@@ -277,6 +277,42 @@ func TestAnthropicBuildRequestStripsAssistantImages(t *testing.T) {
 	}
 }
 
+func TestAnthropicBuildRequestDeduplicatesToolResults(t *testing.T) {
+	c := NewAnthropic("x", "").(*anthropicClient)
+	wire, err := c.buildRequest(Request{
+		Model: "claude-sonnet-4-5",
+		Messages: []Message{
+			{Role: RoleUser, Content: []Content{TextBlock{Text: "read the file"}}},
+			{Role: RoleAssistant, Content: []Content{
+				ToolCallBlock{ID: "tool-1", Name: "read"},
+			}},
+			{Role: RoleTool, Content: []Content{
+				ToolResultBlock{CallID: "tool-1", Content: []Content{TextBlock{Text: "first result"}}},
+			}},
+			{Role: RoleTool, Content: []Content{
+				ToolResultBlock{CallID: "tool-1", Content: []Content{TextBlock{Text: "duplicate result"}}},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Messages) != 3 {
+		t.Fatalf("messages=%d, want 3 after dropping duplicate result message", len(wire.Messages))
+	}
+	blocks := wire.Messages[2].Content
+	if len(blocks) != 1 {
+		t.Fatalf("tool result blocks=%d, want 1", len(blocks))
+	}
+	result, ok := blocks[0].(anthToolResultBlock)
+	if !ok {
+		t.Fatalf("tool result block type=%T", blocks[0])
+	}
+	if string(result.Content) != `"first result"` {
+		t.Fatalf("tool result content=%s", result.Content)
+	}
+}
+
 func TestAnthropicStreamHappyPath(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "text/event-stream")
