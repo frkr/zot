@@ -94,6 +94,54 @@ func TestPromptSubmittedDuringCompactionStartsFollowUpTurn(t *testing.T) {
 	}
 }
 
+func TestCompactionRetainsContextEstimate(t *testing.T) {
+	client := &compactQueueClient{
+		compactionStarted: make(chan struct{}),
+		releaseCompaction: make(chan struct{}),
+		followUpRequest:   make(chan provider.Request, 1),
+	}
+	agent := core.NewAgent(client, "test-model", "", nil)
+	agent.SetMessages([]provider.Message{
+		{Role: provider.RoleUser, Content: []provider.Content{provider.TextBlock{Text: "one"}}},
+		{Role: provider.RoleAssistant, Content: []provider.Content{provider.TextBlock{Text: "two"}}},
+		{Role: provider.RoleUser, Content: []provider.Content{provider.TextBlock{Text: "three"}}},
+		{Role: provider.RoleAssistant, Content: []provider.Content{provider.TextBlock{Text: "four"}}},
+		{Role: provider.RoleUser, Content: []provider.Content{provider.TextBlock{Text: "five"}}},
+	})
+	interactive := NewInteractive(InteractiveConfig{Agent: agent})
+
+	interactive.runCompact(context.Background(), false)
+	select {
+	case <-client.compactionStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("compaction did not start")
+	}
+	close(client.releaseCompaction)
+
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	poll := time.NewTicker(time.Millisecond)
+	defer poll.Stop()
+	for {
+		interactive.mu.Lock()
+		busy := interactive.busy
+		got := interactive.lastCtxInput
+		interactive.mu.Unlock()
+		if !busy {
+			want := estimateTimelineMessageTokens(agent.Messages())
+			if got != want || got == 0 {
+				t.Fatalf("context estimate after compaction = %d, want %d", got, want)
+			}
+			break
+		}
+		select {
+		case <-deadline.C:
+			t.Fatal("compaction did not finish")
+		case <-poll.C:
+		}
+	}
+}
+
 func TestPreTurnCompactionPreservesPromptImages(t *testing.T) {
 	client := &compactQueueClient{
 		compactionStarted: make(chan struct{}),

@@ -5504,7 +5504,7 @@ func (i *Interactive) runCompact(parent context.Context, auto bool) {
 			}
 			i.pendingPostCompactNote = ""
 			i.extNotes = stripAutoCompactNotes(i.extNotes)
-			i.lastCtxInput = 0
+			i.lastCtxInput = estimateTimelineMessageTokens(msgs)
 			i.toolCalls = map[string]*tui.ToolCallView{}
 			i.toolOrder = nil
 			i.toolGate = map[string]int{}
@@ -5523,6 +5523,12 @@ func (i *Interactive) runCompact(parent context.Context, auto bool) {
 			case len(i.queued) > 0:
 				next, i.queued = i.queued[0], i.queued[1:]
 				hasNext = true
+			}
+			// A prompt resumed immediately after compaction must not trigger
+			// the pre-turn threshold guard again before fresh provider usage
+			// replaces this estimate.
+			if hasNext {
+				i.lastCtxInput = 0
 			}
 		}
 		i.mu.Unlock()
