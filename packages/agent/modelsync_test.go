@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/patriceckhart/zot/packages/provider"
 )
@@ -137,6 +138,44 @@ func TestValidateAndRepairConfig_DuplicateModelIDValidForConfiguredProvider(t *t
 	}
 	if out.Model != "gpt-5.5" {
 		t.Errorf("model mutated: %q", out.Model)
+	}
+}
+
+func TestModelCacheFetchedAtPreservesCatalogFreshness(t *testing.T) {
+	cachedAt := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
+	now := cachedAt.Add(time.Hour)
+	cached := provider.ModelCache{FetchedAt: cachedAt}
+
+	if got := modelCacheFetchedAt(cached, false, now); !got.Equal(cachedAt) {
+		t.Fatalf("fresh cache timestamp = %v; want %v", got, cachedAt)
+	}
+	if got := modelCacheFetchedAt(cached, true, now); !got.Equal(now) {
+		t.Fatalf("refreshed cache timestamp = %v; want %v", got, now)
+	}
+}
+
+func TestMergeOpenRouterPresetsReplacesCachedPresets(t *testing.T) {
+	existing := []provider.Model{
+		{Provider: "openrouter", ID: "deepseek/deepseek-v4-flash"},
+		{Provider: "openrouter", ID: "@preset/old"},
+		{Provider: "anthropic", ID: "claude-sonnet-4-5"},
+	}
+	presets := []provider.Model{
+		{Provider: "openrouter", ID: "@preset/flash", DisplayName: "Flash (preset)", ContextWindow: 1000000},
+	}
+	out := mergeOpenRouterPresets(existing, presets)
+	if len(out) != 3 {
+		t.Fatalf("got %d models; want 3", len(out))
+	}
+	var ids []string
+	for _, m := range out {
+		ids = append(ids, m.Provider+"/"+m.ID)
+	}
+	want := []string{"openrouter/deepseek/deepseek-v4-flash", "anthropic/claude-sonnet-4-5", "openrouter/@preset/flash"}
+	for i, id := range want {
+		if ids[i] != id {
+			t.Errorf("ids[%d] = %q; want %q", i, ids[i], id)
+		}
 	}
 }
 

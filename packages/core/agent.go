@@ -31,6 +31,14 @@ type Agent struct {
 	// responses aren't silently cut off with stopReason=length.
 	MaxTokens int
 
+	// SessionID is the zot conversation id, forwarded to providers that
+	// support sticky routing. Empty means omitted.
+	SessionID string
+
+	// MaxToolCalls caps provider-executed server-tool calls per turn.
+	// Zero leaves the field unset.
+	MaxToolCalls int
+
 	// BeforeToolExecute, if set, is called immediately before each
 	// tool runs. Returning (allowed=false, reason) short-circuits
 	// the call with an error result containing reason. Optionally,
@@ -405,8 +413,12 @@ func (a *Agent) runLoop(ctx context.Context, sink func(AgentEvent)) error {
 		}
 
 		if stop == provider.StopToolUse {
-			// Execute each tool call, append a single tool-results message, continue.
+			// Execute each client tool call, append a single tool-results message, continue.
 			toolMsg, hadError := a.executeTools(ctx, assistantMsg, sink)
+			if len(toolMsg.Content) == 0 {
+				// Provider-executed (server) tools need no client results.
+				continue
+			}
 			a.mu.Lock()
 			a.messages = append(a.messages, toolMsg)
 			a.rev++
@@ -562,11 +574,13 @@ func (a *Agent) oneTurn(ctx context.Context, sink func(AgentEvent)) (provider.St
 		// next in-process request is rejected by providers like Anthropic
 		// with "tool_use ids were found without tool_result blocks". The
 		// repair is pure and a no-op on already-valid transcripts.
-		Messages:    repairToolUseResultPairs(a.Messages()),
-		Tools:       a.Tools.Specs(),
-		Reasoning:   a.Reasoning,
-		MaxTokens:   a.MaxTokens,
-		Temperature: a.Temperature,
+		Messages:     repairToolUseResultPairs(a.Messages()),
+		Tools:        a.Tools.Specs(),
+		Reasoning:    a.Reasoning,
+		MaxTokens:    a.MaxTokens,
+		Temperature:  a.Temperature,
+		SessionID:    a.SessionID,
+		MaxToolCalls: a.MaxToolCalls,
 	}
 	stream, err := a.Client.Stream(ctx, req)
 	if err != nil {
@@ -675,7 +689,7 @@ func (a *Agent) executeTools(ctx context.Context, msg provider.Message, sink fun
 
 	for _, c := range msg.Content {
 		tc, ok := c.(provider.ToolCallBlock)
-		if !ok {
+		if !ok || tc.Server {
 			continue
 		}
 		res := a.runOneTool(ctx, tc, sink)
