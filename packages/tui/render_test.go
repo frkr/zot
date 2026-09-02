@@ -61,6 +61,28 @@ func TestDrawLogContentChangeBreaksFastPath(t *testing.T) {
 	}
 }
 
+func TestDrawLogLargeBottomShrinkKeepsVisibleRowsAddressable(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewRenderer(&buf)
+	r.Resize(80, 4)
+
+	// A long dialog, such as a swarm transcript, scrolls beyond the viewport.
+	r.DrawLog(nil, []string{"transcript 1", "transcript 2", "transcript 3", "transcript 4", "transcript 5", "transcript 6"}, -1, 0)
+	buf.Reset()
+
+	// Returning to the short dashboard requires a full repaint because one
+	// viewport of logical rows disappeared.
+	r.DrawLog(nil, []string{"dashboard", "selected agent 1"}, -1, 0)
+	buf.Reset()
+
+	// The dashboard remains interactive after that repaint. A cursor move must
+	// update its visible selection instead of being discarded as inaccessible.
+	r.DrawLog(nil, []string{"dashboard", "selected agent 2"}, -1, 0)
+	if got := buf.String(); !strings.Contains(got, "selected agent 2") {
+		t.Fatalf("visible update after large dialog shrink was suppressed: %q", got)
+	}
+}
+
 // TestDrawLogCursorMoveBreaksFastPath proves a cursor-only change
 // (no buffer change) still produces output. Without this, typing in
 // the editor would visually move the caret but the terminal would
