@@ -316,7 +316,7 @@ Type `!` followed by a command to run it directly without going through the mode
 
 ### `/sessions`
 
-Shows previous sessions for the current working directory, newest first, with timestamp, model, message count, cost, and the first user prompt. Pick one with `up`/`down`, `enter` to resume, `esc` to cancel. zot swaps the current session file for the selected one and replays the full transcript (including tool calls) into the agent. Sessions remember the model they ended on, so resuming picks up on that exact model even if your global default changed.
+Shows previous sessions for the current working directory, newest first, with timestamp, model, message count, cost, and the first user prompt. Pick one with `up`/`down`, `enter` to resume, `r` to rename, `d` to delete, or `esc` to cancel. Deletion requires confirmation and permanently removes the session file; the currently active session cannot be deleted. zot swaps the current session file for the selected one and replays the full transcript (including tool calls) into the agent. Sessions remember the model they ended on, so resuming picks up on that exact model even if your global default changed.
 
 ### `/session`
 

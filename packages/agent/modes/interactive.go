@@ -2224,6 +2224,9 @@ func (i *Interactive) handleKey(ctx context.Context, k tui.Key) (done bool) {
 		if act.Select {
 			i.applySessionSelection(act.Path)
 		}
+		if act.Delete {
+			i.applySessionDeletion(act.Path)
+		}
 		// Always request a redraw after handling a key here: when esc
 		// closes the picker, the overlay-close detection in the render
 		// pass needs to run so the tall dialog rows get repainted from
@@ -5166,6 +5169,39 @@ func totalTurnsLocked(msgs []provider.Message) int {
 		}
 	}
 	return n
+}
+
+// applySessionDeletion permanently removes a session selected in /sessions.
+// The active session is protected because unlinking its open file would lose
+// subsequent transcript writes on Unix and behaves differently on Windows.
+func (i *Interactive) applySessionDeletion(path string) {
+	if i.cfg.CurrentSessionPath == nil {
+		i.mu.Lock()
+		i.statusErr = "session deletion is not wired in this build"
+		i.statusOK = ""
+		i.mu.Unlock()
+		return
+	}
+	current := i.cfg.CurrentSessionPath()
+	if current != "" && filepath.Clean(current) == filepath.Clean(path) {
+		i.mu.Lock()
+		i.statusErr = "cannot delete the active session; resume another session first"
+		i.statusOK = ""
+		i.mu.Unlock()
+		return
+	}
+	if err := core.DeleteSession(path); err != nil {
+		i.mu.Lock()
+		i.statusErr = "delete session: " + err.Error()
+		i.statusOK = ""
+		i.mu.Unlock()
+		return
+	}
+	i.sessionDialog.Remove(path)
+	i.mu.Lock()
+	i.statusOK = "deleted session: " + friendlyPath(path)
+	i.statusErr = ""
+	i.mu.Unlock()
 }
 
 // applySessionSelection loads the given session via the cli-provided

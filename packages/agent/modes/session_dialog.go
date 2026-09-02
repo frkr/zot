@@ -16,6 +16,7 @@ type sessionDialog struct {
 	cursor   int
 	renaming bool
 	rename   string
+	deleting bool
 
 	// MaxRows is the maximum number of session rows the dialog
 	// will render in a single frame. Set by the host right before
@@ -35,6 +36,7 @@ type sessionDialog struct {
 // sessionDialogAction is returned by HandleKey.
 type sessionDialogAction struct {
 	Select  bool
+	Delete  bool
 	Path    string
 	Close   bool
 	Renamed bool
@@ -59,6 +61,9 @@ func (d *sessionDialog) Open(root, cwd string) {
 	d.sessions = filtered
 	d.cursor = 0
 	d.viewTop = 0
+	d.renaming = false
+	d.rename = ""
+	d.deleting = false
 	d.active = true
 }
 
@@ -73,8 +78,13 @@ func (d *sessionDialog) CursorPos() (row, col int) {
 	return 3, 4 + len([]rune(d.rename))
 }
 
-// Close hides the dialog.
-func (d *sessionDialog) Close() { d.active = false }
+// Close hides the dialog and abandons any pending edit or deletion.
+func (d *sessionDialog) Close() {
+	d.active = false
+	d.renaming = false
+	d.rename = ""
+	d.deleting = false
+}
 
 // Active reports whether the dialog is visible and consumes input.
 func (d *sessionDialog) Active() bool { return d != nil && d.active }
@@ -104,7 +114,15 @@ func (d *sessionDialog) Render(th tui.Theme, width int) []string {
 		lines = append(lines, frameRule(th, width))
 		return lines
 	}
-	lines = append(lines, th.FG256(th.Muted, "pick a session (↑/↓, pgup/pgdn, enter resume, r rename, esc cancel)"))
+	if d.deleting {
+		s := d.sessions[d.cursor]
+		lines = append(lines, th.FG256(th.Muted, "permanently delete this session?"))
+		lines = append(lines, "  "+formatSessionRowPlain(s, width-2))
+		lines = append(lines, th.FG256(th.Muted, "press y to delete, enter/esc to cancel"))
+		lines = append(lines, frameRule(th, width))
+		return lines
+	}
+	lines = append(lines, th.FG256(th.Muted, "pick a session (↑/↓, pgup/pgdn, enter resume, r rename, d delete, esc cancel)"))
 
 	// Viewport: windowed slice of d.sessions around d.cursor so a
 	// list taller than the terminal still scrolls. Caller sets
@@ -235,6 +253,23 @@ func formatRelative(t time.Time) string {
 
 // HandleKey advances the dialog and returns an action to apply, if any.
 func (d *sessionDialog) HandleKey(k tui.Key) sessionDialogAction {
+	if d.deleting {
+		switch k.Kind {
+		case tui.KeyRune:
+			if (k.Rune == 'y' || k.Rune == 'Y') && d.cursor < len(d.sessions) {
+				path := d.sessions[d.cursor].Path
+				d.deleting = false
+				return sessionDialogAction{Delete: true, Path: path}
+			}
+			if k.Rune == 'n' || k.Rune == 'N' {
+				d.deleting = false
+			}
+		case tui.KeyEnter, tui.KeyEsc:
+			d.deleting = false
+		}
+		return sessionDialogAction{}
+	}
+
 	// Rename mode: type the new name.
 	if d.renaming {
 		switch k.Kind {
@@ -327,6 +362,28 @@ func (d *sessionDialog) HandleKey(k tui.Key) sessionDialogAction {
 			}
 			return sessionDialogAction{}
 		}
+		if k.Rune == 'd' && len(d.sessions) > 0 {
+			d.deleting = true
+		}
 	}
 	return sessionDialogAction{}
+}
+
+// Remove deletes path from the visible rows after the host has removed the
+// corresponding file. The next row stays selected when possible.
+func (d *sessionDialog) Remove(path string) {
+	for idx := range d.sessions {
+		if d.sessions[idx].Path != path {
+			continue
+		}
+		d.sessions = append(d.sessions[:idx], d.sessions[idx+1:]...)
+		if d.cursor >= len(d.sessions) {
+			d.cursor = len(d.sessions) - 1
+		}
+		if d.cursor < 0 {
+			d.cursor = 0
+		}
+		d.viewTop = clampViewTop(d.viewTop, d.cursor, d.MaxRows, len(d.sessions))
+		return
+	}
 }
