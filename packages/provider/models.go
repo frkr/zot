@@ -272,7 +272,7 @@ var Catalog = []Model{
 		BaseURL: gondolaDefaultBaseURL,
 	},
 
-	// ---- Speculative: Anthropic ----
+	// ---- Anthropic / newer families ----
 	{
 		Provider: "anthropic", ID: "claude-opus-4-5", DisplayName: "Claude Opus 4.5 (latest)",
 		ContextWindow: 200000, MaxOutput: 64000, Reasoning: true,
@@ -316,8 +316,12 @@ var Catalog = []Model{
 	{
 		Provider: "anthropic", ID: "claude-fable-5", DisplayName: "Claude Fable 5",
 		ContextWindow: 1000000, MaxOutput: 128000, Reasoning: true, AdaptiveThinking: true,
-		PriceInput: 10, PriceOutput: 50, PriceCacheRead: 0.5, PriceCacheWrite: 6.25,
-		Speculative: true,
+		PriceInput: 10, PriceOutput: 50, PriceCacheRead: 1, PriceCacheWrite: 12.5,
+	},
+	{
+		Provider: "anthropic", ID: "claude-fable-5-1", DisplayName: "Claude Fable 5.1",
+		ContextWindow: 1000000, MaxOutput: 128000, Reasoning: true, AdaptiveThinking: true,
+		PriceInput: 10, PriceOutput: 50, PriceCacheRead: 0.25, PriceCacheWrite: 12.5,
 	},
 
 	// ---- Speculative: OpenAI ----

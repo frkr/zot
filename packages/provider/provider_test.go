@@ -96,6 +96,24 @@ func TestAnthropicErrorStatus(t *testing.T) {
 	}
 }
 
+func TestAnthropicOAuthUsesCurrentClaudeCodeVersion(t *testing.T) {
+	var userAgent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userAgent = r.Header.Get("user-agent")
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c := NewAnthropicOAuth("test-token", srv.URL)
+	_, err := c.Stream(context.Background(), Request{Model: "claude-fable-5-1"})
+	if err == nil {
+		t.Fatal("expected test server error")
+	}
+	if want := "claude-cli/2.1.258"; userAgent != want {
+		t.Fatalf("user-agent = %q, want %q", userAgent, want)
+	}
+}
+
 func TestOpenAIErrorStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -379,6 +397,47 @@ func TestClaudeSonnet5Catalog(t *testing.T) {
 	}
 	if m.PriceInput != 2 || m.PriceOutput != 10 || m.PriceCacheRead != 0.2 || m.PriceCacheWrite != 2.5 {
 		t.Fatalf("unexpected Sonnet 5 pricing: %+v", m)
+	}
+}
+
+func TestClaudeFable5Catalog(t *testing.T) {
+	m, err := FindModel("anthropic", "claude-fable-5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.DisplayName != "Claude Fable 5" || m.ContextWindow != 1000000 || m.MaxOutput != 128000 || !m.Reasoning || !m.AdaptiveThinking || m.Speculative {
+		t.Fatalf("unexpected Fable 5 model: %+v", m)
+	}
+	if m.PriceInput != 10 || m.PriceOutput != 50 || m.PriceCacheRead != 1 || m.PriceCacheWrite != 12.5 {
+		t.Fatalf("unexpected Fable 5 pricing: %+v", m)
+	}
+}
+
+func TestClaudeFable51Catalog(t *testing.T) {
+	m, err := FindModel("anthropic", "claude-fable-5-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.DisplayName != "Claude Fable 5.1" || m.ContextWindow != 1000000 || m.MaxOutput != 128000 || !m.Reasoning || !m.AdaptiveThinking || m.Speculative {
+		t.Fatalf("unexpected Fable 5.1 model: %+v", m)
+	}
+	if m.PriceInput != 10 || m.PriceOutput != 50 || m.PriceCacheRead != 0.25 || m.PriceCacheWrite != 12.5 {
+		t.Fatalf("unexpected Fable 5.1 pricing: %+v", m)
+	}
+
+	wire, err := NewAnthropic("x", "").(*anthropicClient).buildRequest(Request{
+		Model:     m.ID,
+		Reasoning: "max",
+		Messages:  []Message{{Role: RoleUser, Content: []Content{TextBlock{Text: "hi"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wire.Thinking == nil || wire.Thinking.Type != "adaptive" || wire.Thinking.BudgetTokens != 0 {
+		t.Fatalf("unexpected Fable 5.1 thinking config: %+v", wire.Thinking)
+	}
+	if wire.OutputConfig == nil || wire.OutputConfig.Effort != "max" {
+		t.Fatalf("unexpected Fable 5.1 output config: %+v", wire.OutputConfig)
 	}
 }
 
