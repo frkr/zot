@@ -62,6 +62,16 @@ func setupTemplates() map[string]serverTemplate {
 				}
 			},
 		},
+		"you": {
+			Name:        "you",
+			Description: "Current web search via the keyless You.com MCP server (you-search). Add an Authorization Bearer header with a YDC_API_KEY for the full tool set.",
+			Config: func(cwd string) ServerConfig {
+				return ServerConfig{
+					Transport: "streamable-http",
+					URL:       "https://api.you.com/mcp?profile=free",
+				}
+			},
+		},
 	}
 }
 

@@ -211,6 +211,31 @@ Standard MCP config — same as Claude Desktop, with zot-specific extensions:
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+
+    // You.com web search (streamable-http, keyless)
+    "you": {
+      "transport": "streamable-http",
+      "url": "https://api.you.com/mcp?profile=free"
+    }
+  }
+}
+```
+
+### You.com template
+
+`/mcp setup add you` registers the keyless You.com MCP profile
+(`you-search`). It needs no account or API key. To move to the
+authenticated server with the full You.com tool set, edit
+`$ZOT_HOME/mcp.json` after adding the template:
+
+```jsonc
+{
+  "you": {
+    "transport": "streamable-http",
+    "url": "https://api.you.com/mcp",
+    "headers": {
+      "Authorization": "Bearer YOUR_YDC_API_KEY"
     }
   }
 }
