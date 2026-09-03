@@ -583,7 +583,18 @@ func (r *Renderer) DrawLog(chat, bottom []string, cursorBottomRow, cursorCol int
 	// real previous bg-colored row.
 
 	wasInitialized := r.logInit
-	full := !wasInitialized || len(r.logLines) == 0
+	bottomShrunkAboveViewport := false
+	if len(bottomFrame) < len(r.logBottom) {
+		newViewportTop := len(lines) - r.rows
+		if newViewportTop < 0 {
+			newViewportTop = 0
+		}
+		// If the shorter bottom frame starts above the currently addressable
+		// viewport, relative cursor movement cannot repaint its prefix. This
+		// happens when returning from a moderately long dialog to a short one.
+		bottomShrunkAboveViewport = newViewportTop < r.logViewportTop
+	}
+	full := !wasInitialized || len(r.logLines) == 0 || bottomShrunkAboveViewport
 	if full {
 		writeFull(true, !wasInitialized)
 		r.logInit = true
